@@ -57,6 +57,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     @Published var customExtensionInput: String = ""
+    @Published var searchText: String = ""
     @Published var selectedRowID: String? {
         didSet { syncSelectionFromRowID() }
     }
@@ -181,6 +182,25 @@ final class HomeViewModel: ObservableObject {
                 .flatMap(\.extensions)
                 .map { $0.lowercased() }
         )
+    }
+
+    var filteredPresetCategories: [PresetCategory] {
+        let q = normalizedSearchQuery
+        guard !q.isEmpty else { return presetCategories }
+
+        return presetCategories.compactMap { category in
+            let groups = category.groups.compactMap { group -> PresetGroup? in
+                let exts = group.extensions.filter { $0.localizedCaseInsensitiveContains(q) }
+                return exts.isEmpty ? nil : PresetGroup(title: group.title, extensions: exts)
+            }
+            return groups.isEmpty ? nil : PresetCategory(title: category.title, groups: groups)
+        }
+    }
+
+    var filteredCustomExtensions: [String] {
+        let q = normalizedSearchQuery
+        guard !q.isEmpty else { return customExtensions }
+        return customExtensions.filter { $0.localizedCaseInsensitiveContains(q) }
     }
 
     var canApply: Bool {
@@ -392,6 +412,14 @@ final class HomeViewModel: ObservableObject {
         if level == .error || level == .warning {
             isLogExpanded = true
         }
+    }
+
+    private var normalizedSearchQuery: String {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix(".") {
+            return String(trimmed.dropFirst()).lowercased()
+        }
+        return trimmed.lowercased()
     }
 
     private static func parseExtensions(from input: String) -> [String] {

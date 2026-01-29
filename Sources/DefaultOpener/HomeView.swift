@@ -24,15 +24,31 @@ struct HomeView: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("搜索后缀（例如：pdf 或 .pdf）", text: $viewModel.searchText)
+                    .textFieldStyle(.roundedBorder)
+                if !viewModel.searchText.isEmpty {
+                    Button {
+                        viewModel.searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(10)
+
             List(selection: $viewModel.selectedRowID) {
-                ForEach(viewModel.presetCategories, id: \.title) { category in
+                ForEach(viewModel.filteredPresetCategories, id: \.title) { category in
                     Section(category.title) {
                         ForEach(category.groups, id: \.title) { group in
                             Text(group.title)
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(.secondary)
                                 .padding(.top, 4)
-                                .onTapGesture { }
 
                             ForEach(group.extensions, id: \.self) { ext in
                                 Text(".\(ext)")
@@ -43,7 +59,7 @@ struct HomeView: View {
                 }
 
                 Section("自定义") {
-                    ForEach(viewModel.customExtensions, id: \.self) { ext in
+                    ForEach(viewModel.filteredCustomExtensions, id: \.self) { ext in
                         Text(".\(ext)")
                             .tag(customRowID(ext: ext) as String?)
                             .contextMenu {
