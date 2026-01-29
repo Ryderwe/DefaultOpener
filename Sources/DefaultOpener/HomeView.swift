@@ -24,18 +24,28 @@ struct HomeView: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            List(selection: $viewModel.selectedExtension) {
-                Section("常用") {
-                    ForEach(viewModel.presetExtensions, id: \.self) { ext in
-                        Text(".\(ext)")
-                            .tag(ext as String?)
+            List(selection: $viewModel.selectedRowID) {
+                ForEach(viewModel.presetCategories, id: \.title) { category in
+                    Section(category.title) {
+                        ForEach(category.groups, id: \.title) { group in
+                            Text(group.title)
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 4)
+                                .onTapGesture { }
+
+                            ForEach(group.extensions, id: \.self) { ext in
+                                Text(".\(ext)")
+                                    .tag(presetRowID(category: category.title, group: group.title, ext: ext) as String?)
+                            }
+                        }
                     }
                 }
 
                 Section("自定义") {
                     ForEach(viewModel.customExtensions, id: \.self) { ext in
                         Text(".\(ext)")
-                            .tag(ext as String?)
+                            .tag(customRowID(ext: ext) as String?)
                             .contextMenu {
                                 Button("移除") {
                                     viewModel.removeCustomExtension(ext)
@@ -60,6 +70,14 @@ struct HomeView: View {
             }
             .padding(10)
         }
+    }
+
+    private func presetRowID(category: String, group: String, ext: String) -> String {
+        "preset|\(category)|\(group)|\(ext)"
+    }
+
+    private func customRowID(ext: String) -> String {
+        "custom|\(ext)"
     }
 
     private var detail: some View {

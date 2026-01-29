@@ -7,6 +7,16 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class HomeViewModel: ObservableObject {
+    struct PresetCategory: Equatable {
+        let title: String
+        let groups: [PresetGroup]
+    }
+
+    struct PresetGroup: Equatable {
+        let title: String
+        let extensions: [String]
+    }
+
     struct ApplicationInfo: Equatable {
         let url: URL?
         let bundleIdentifier: String
@@ -47,9 +57,10 @@ final class HomeViewModel: ObservableObject {
     }
 
     @Published var customExtensionInput: String = ""
-    @Published var selectedExtension: String? {
-        didSet { refreshSelection() }
+    @Published var selectedRowID: String? {
+        didSet { syncSelectionFromRowID() }
     }
+    @Published private(set) var selectedExtension: String?
     @Published private(set) var selectedUTI: String?
     @Published private(set) var currentDefaultApp: ApplicationInfo?
     @Published private(set) var targetApp: ApplicationInfo?
@@ -58,14 +69,119 @@ final class HomeViewModel: ObservableObject {
     @Published var isLogExpanded: Bool = false
     @Published private(set) var customExtensions: [String] = []
 
-    let presetExtensions: [String] = [
-        "png", "jpg", "jpeg", "gif", "webp", "heic", "tiff", "svg",
-        "pdf",
-        "txt", "md",
-        "json", "yaml", "yml",
-        "zip",
-        "mp4", "mov"
+    let presetCategories: [PresetCategory] = [
+        PresetCategory(
+            title: "文档与文字",
+            groups: [
+                PresetGroup(title: "纯文本", extensions: ["txt", "md", "rtf"]),
+                PresetGroup(title: "Word/写作", extensions: ["doc", "docx", "odt"]),
+                PresetGroup(title: "电子书/阅读", extensions: ["pdf", "epub", "mobi"]),
+                PresetGroup(title: "日志/记录", extensions: ["log"]),
+            ]
+        ),
+        PresetCategory(
+            title: "表格与数据",
+            groups: [
+                PresetGroup(title: "Excel/表格", extensions: ["xls", "xlsx", "csv"]),
+                PresetGroup(title: "开放文档表格", extensions: ["ods"]),
+                PresetGroup(title: "数据交换", extensions: ["json", "xml", "yaml", "yml"]),
+            ]
+        ),
+        PresetCategory(
+            title: "演示文稿",
+            groups: [
+                PresetGroup(title: "PowerPoint", extensions: ["ppt", "pptx"]),
+                PresetGroup(title: "开放文档演示", extensions: ["odp"]),
+                PresetGroup(title: "导出/播放", extensions: ["pdf"]),
+            ]
+        ),
+        PresetCategory(
+            title: "图片与设计",
+            groups: [
+                PresetGroup(title: "常见图片", extensions: ["jpg", "jpeg", "png", "gif"]),
+                PresetGroup(title: "高质量/印刷", extensions: ["tif", "tiff"]),
+                PresetGroup(title: "图标/矢量", extensions: ["svg", "ico"]),
+                PresetGroup(title: "苹果/动图", extensions: ["heic", "webp"]),
+                PresetGroup(title: "设计源文件", extensions: ["psd", "ai", "xd", "sketch"]),
+            ]
+        ),
+        PresetCategory(
+            title: "音频",
+            groups: [
+                PresetGroup(title: "常见音频", extensions: ["mp3", "m4a", "aac"]),
+                PresetGroup(title: "无损", extensions: ["flac", "wav", "aiff"]),
+                PresetGroup(title: "其他", extensions: ["ogg"]),
+            ]
+        ),
+        PresetCategory(
+            title: "视频",
+            groups: [
+                PresetGroup(title: "常见视频", extensions: ["mp4", "mov", "mkv"]),
+                PresetGroup(title: "传统/兼容", extensions: ["avi", "wmv"]),
+                PresetGroup(title: "网络/开源", extensions: ["webm"]),
+            ]
+        ),
+        PresetCategory(
+            title: "压缩包与归档",
+            groups: [
+                PresetGroup(title: "常见压缩", extensions: ["zip", "rar", "7z"]),
+                PresetGroup(title: "Linux 常见", extensions: ["tar", "gz", "tgz", "bz2"]),
+            ]
+        ),
+        PresetCategory(
+            title: "可执行与安装包（按系统）",
+            groups: [
+                PresetGroup(title: "Windows", extensions: ["exe", "msi", "bat"]),
+                PresetGroup(title: "macOS", extensions: ["app", "dmg", "pkg"]),
+                PresetGroup(title: "Linux", extensions: ["sh", "deb", "rpm"]),
+            ]
+        ),
+        PresetCategory(
+            title: "编程与脚本",
+            groups: [
+                PresetGroup(title: "通用代码", extensions: ["py", "js", "ts", "java", "c", "cpp", "go", "rs"]),
+                PresetGroup(title: "网页相关", extensions: ["html", "css"]),
+                PresetGroup(title: "脚本/命令", extensions: ["sh", "ps1"]),
+                PresetGroup(title: "配置/依赖", extensions: ["env", "ini", "toml", "lock"]),
+            ]
+        ),
+        PresetCategory(
+            title: "数据库与备份",
+            groups: [
+                PresetGroup(title: "数据库文件", extensions: ["db", "sqlite", "mdb"]),
+                PresetGroup(title: "备份/转储", extensions: ["bak", "sql"]),
+            ]
+        ),
+        PresetCategory(
+            title: "字体",
+            groups: [
+                PresetGroup(title: "常见字体", extensions: ["ttf", "otf"]),
+                PresetGroup(title: "网页字体", extensions: ["woff", "woff2"]),
+            ]
+        ),
+        PresetCategory(
+            title: "邮件与通讯",
+            groups: [
+                PresetGroup(title: "邮件文件", extensions: ["eml", "msg"]),
+                PresetGroup(title: "通讯录/日历", extensions: ["vcf", "ics"]),
+            ]
+        ),
+        PresetCategory(
+            title: "镜像/光盘映像",
+            groups: [
+                PresetGroup(title: "镜像", extensions: ["iso", "img"]),
+            ]
+        ),
     ]
+
+    private var presetExtensionSet: Set<String> {
+        Set(
+            presetCategories
+                .flatMap(\.groups)
+                .flatMap(\.extensions)
+                .map { $0.lowercased() }
+        )
+    }
 
     var canApply: Bool {
         !isWorking && selectedExtension != nil && targetApp != nil && selectedUTI != nil
@@ -87,7 +203,8 @@ final class HomeViewModel: ObservableObject {
         guard !candidates.isEmpty else { return }
 
         let existing = Set(customExtensions)
-        let newOnes = candidates.filter { !existing.contains($0) && !presetExtensions.contains($0) }
+        let presetSet = presetExtensionSet
+        let newOnes = candidates.filter { !existing.contains($0) && !presetSet.contains($0) }
         guard !newOnes.isEmpty else {
             customExtensionInput = ""
             return
@@ -99,8 +216,8 @@ final class HomeViewModel: ObservableObject {
         customExtensionInput = ""
         appendLog("已添加自定义后缀：\(newOnes.map { ".\($0)" }.joined(separator: ", "))", level: .info)
 
-        if selectedExtension == nil, let first = newOnes.first {
-            selectedExtension = first
+        if selectedRowID == nil, let first = newOnes.first {
+            selectedRowID = "custom|\(first)"
         }
     }
 
@@ -111,6 +228,10 @@ final class HomeViewModel: ObservableObject {
         if !removed.isEmpty {
             appendLog("已移除自定义后缀：\(removed.map { ".\($0)" }.joined(separator: ", "))", level: .info)
         }
+
+        if let selectedExtension, removed.contains(selectedExtension) {
+            selectedRowID = nil
+        }
     }
 
     func removeCustomExtension(_ ext: String) {
@@ -118,6 +239,10 @@ final class HomeViewModel: ObservableObject {
         customExtensions.remove(at: idx)
         saveCustomExtensions()
         appendLog("已移除自定义后缀：.\(ext)", level: .info)
+
+        if selectedExtension == ext {
+            selectedRowID = nil
+        }
     }
 
     func refreshSelection() {
@@ -221,6 +346,24 @@ final class HomeViewModel: ObservableObject {
 
     func clearLogs() {
         logs.removeAll()
+    }
+
+    private func syncSelectionFromRowID() {
+        guard let selectedRowID else {
+            selectedExtension = nil
+            refreshSelection()
+            return
+        }
+
+        let parts = selectedRowID.split(separator: "|", omittingEmptySubsequences: true)
+        guard let last = parts.last else {
+            selectedExtension = nil
+            refreshSelection()
+            return
+        }
+
+        selectedExtension = String(last)
+        refreshSelection()
     }
 
     private func loadCustomExtensions() {
